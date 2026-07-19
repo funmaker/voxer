@@ -40,8 +40,7 @@ pub struct Application {
 }
 
 impl Application {
-	pub async fn new(window: Window, config: Config) -> Result<Self> {
-		let window = Arc::new(window);
+	pub async fn new(window: Arc<Window>, config: Config) -> Result<Self> {
 		let render = RenderContext::new(window.clone()).await?;
 		let world = World::new(&config.world_model, &render)?;
 		

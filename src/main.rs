@@ -1,10 +1,9 @@
-#![feature(never_type)]
-#![feature(set_ptr_value)]
 #![feature(ptr_metadata)]
 #![feature(try_blocks)]
 #![feature(int_roundings)]
 #![feature(layout_for_ptr)]
 
+use std::sync::Arc;
 use anyhow::Result;
 use winit::dpi::PhysicalPosition;
 use winit::dpi::PhysicalSize;
@@ -20,11 +19,11 @@ use application::Application;
 use utils::config::Config;
 
 async fn run(event_loop: EventLoop<()>, window: Window, config: Config) -> Result<()> {
-	let mut application = Application::new(window, config).await?;
+	let window = Arc::new(window);
+	let mut application = Application::new(window.clone(), config).await?;
 	let mut cursor_trap = false;
 	
 	event_loop.run(move |event, target| {
-		
 		if let Event::WindowEvent { event, .. } = &event {
 			if !cursor_trap {
 				if application.gui.on_event(&application.window, &event) {
@@ -53,7 +52,9 @@ async fn run(event_loop: EventLoop<()>, window: Window, config: Config) -> Resul
 				}, .. } if !cursor_trap => {
 					cursor_trap = true;
 					application.window.set_cursor_visible(false);
-					application.window.set_cursor_grab(CursorGrabMode::Confined)?;
+					application.window.set_cursor_grab(CursorGrabMode::Confined)
+					                  .or_else(|_| window.set_cursor_grab(CursorGrabMode::Locked))
+					                  .map_err(Into::into)?;
 					
 					// When cursor is grabbed, egui stops receiving events. Let's fake button release so it doesn't think it's constantly pressed.
 					if let WindowEvent::MouseInput { state, .. } = &mut window_event {
@@ -71,11 +72,13 @@ async fn run(event_loop: EventLoop<()>, window: Window, config: Config) -> Resul
 				}, .. } if cursor_trap => {
 					cursor_trap = false;
 					application.window.set_cursor_visible(true);
-					application.window.set_cursor_grab(CursorGrabMode::None)?;
+					application.window.set_cursor_grab(CursorGrabMode::None)
+					                  .map_err(Into::into)?;
 					
 					let size = application.window.inner_size();
 					let center = PhysicalPosition::new(size.width / 2, size.height / 2);
-					application.window.set_cursor_position(center)?;
+					application.window.set_cursor_position(center)
+					                  .map_err(Into::into)?;
 				},
 				
 				Event::WindowEvent { event: WindowEvent::KeyboardInput {
@@ -96,7 +99,8 @@ async fn run(event_loop: EventLoop<()>, window: Window, config: Config) -> Resul
 				} if cursor_trap => {
 					let size = application.window.inner_size();
 					let center = PhysicalPosition::new(size.width / 2, size.height / 2);
-					application.window.set_cursor_position(center)?;
+					application.window.set_cursor_position(center)
+					                  .map_err(Into::into)?;
 					
 					application.input.mouse.update_axis(axis as usize, value as f32);
 				}
