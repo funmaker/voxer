@@ -134,7 +134,7 @@ impl Benchmark {
 						Color32::GRAY
 					};
 					
-					plot_ui.line(Line::new(PlotPoints::from_iter(
+					plot_ui.line(Line::new(name, PlotPoints::from_iter(
 						self.samples[name].iter()
 						     .copied()
 						     .enumerate()
@@ -149,7 +149,7 @@ impl Benchmark {
 					                      .find(|&(_, n)| n == name)
 					                      .map_or(Color32::WHITE, |(i, _)| COLORS[i % COLORS.len()]);
 					
-					plot_ui.line(Line::new(PlotPoints::from_iter(
+					plot_ui.line(Line::new(name, PlotPoints::from_iter(
 						self.samples[name].iter()
 						                  .copied()
 						                  .enumerate()
@@ -158,6 +158,7 @@ impl Benchmark {
 					  .highlight(true));
 					
 					plot_ui.bar_chart(BarChart::new(
+						name,
 						self.samples[name].iter()
 						                  .copied()
 						                  .enumerate()
@@ -168,7 +169,7 @@ impl Benchmark {
 				}
 				
 				if let Some(target_fps) = target_fps {
-					plot_ui.hline(HLine::new(1000.0 / target_fps).color(Color32::RED))
+					plot_ui.hline(HLine::new("target", 1000.0 / target_fps).color(Color32::RED))
 				}
 			});
 		

@@ -25,7 +25,7 @@ struct Model {
 struct Pc {
   model: mat4x4<f32>,
 }
-var<push_constant> pc: Pc;
+var<immediate> pc: Pc;
 
 const pi = radians(180.0);
 const tau = radians(360.0);

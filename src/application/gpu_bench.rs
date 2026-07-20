@@ -3,7 +3,7 @@ use log::error;
 use wgpu::{Buffer, BufferUsages, CommandEncoder, MapMode, QuerySet, QueryType, RenderPass};
 
 use crate::application::bench::Benchmark;
-use crate::application::render_context::{RenderContext, TIMING_QUERY_COUNT};
+use crate::application::render::{Render, TIMING_QUERY_COUNT};
 
 pub struct GpuBenchmark {
 	bench: Arc<Mutex<Benchmark>>,
@@ -14,7 +14,7 @@ pub struct GpuBenchmark {
 }
 
 impl GpuBenchmark {
-	pub fn new(render: &RenderContext) -> Self {
+	pub fn new(render: &Render) -> Self {
 		let query_set = render.device.create_query_set(&wgpu::QuerySetDescriptor {
 			label: Some("Timing Query Set"),
 			ty: QueryType::Timestamp,
@@ -30,7 +30,7 @@ impl GpuBenchmark {
 		}
 	}
 	
-	pub fn new_frame(&mut self, render: &RenderContext) {
+	pub fn new_frame(&mut self, render: &Render) {
 		let resolve_buffer = self.resolve_pool.take()
 		                                      .unwrap_or_else(|| {
 			                                      Arc::new(render.device.create_buffer(&wgpu::BufferDescriptor {

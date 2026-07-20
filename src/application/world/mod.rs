@@ -8,7 +8,7 @@ use wgpu::util::{BufferInitDescriptor, DeviceExt};
 mod model;
 
 use crate::utils::math::{Mat4, Vec3};
-use crate::application::render_context::{Commons, RenderContext};
+use crate::application::render::{Commons, Render};
 use crate::application::shaders;
 use model::Model;
 
@@ -42,7 +42,7 @@ pub struct World {
 }
 
 impl World {
-	pub fn new(model_path: &str, render: &RenderContext) -> Result<Self> {
+	pub fn new(model_path: &str, render: &Render) -> Result<Self> {
 		let vox_data = dot_vox::load(model_path).map_err(Error::msg)?;
 		let (model, center) = Model::new(&vox_data);
 		
@@ -122,11 +122,8 @@ impl World {
 		
 		let pipeline_layout = render.device.create_pipeline_layout(&PipelineLayoutDescriptor {
 			label: Some("World Pipeline Layout"),
-			bind_group_layouts: &[&bind_group_layout],
-			push_constant_ranges: &[wgpu::PushConstantRange {
-				stages: wgpu::ShaderStages::VERTEX_FRAGMENT,
-				range: 0..(size_of::<Pc>() as u32),
-			}],
+			bind_group_layouts: &[Some(&bind_group_layout)],
+			immediate_size: size_of::<Pc>() as u32,
 		});
 		
 		let shader = render.device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -151,20 +148,21 @@ impl World {
 			layout: Some(&pipeline_layout),
 			vertex: wgpu::VertexState {
 				module: &shader,
-				entry_point: "vs_main",
+				entry_point: Some("vs_main"),
 				buffers: &vertex_buffers,
 				compilation_options: Default::default(),
 			},
 			fragment: Some(wgpu::FragmentState {
 				module: &shader,
-				entry_point: "fs_main",
+				entry_point: Some("fs_main"),
 				compilation_options: Default::default(),
 				targets: &[Some(render.swapchain_format.into())],
 			}),
 			primitive: wgpu::PrimitiveState::default(),
 			depth_stencil: None,
 			multisample: wgpu::MultisampleState::default(),
-			multiview: None,
+			multiview_mask: None,
+			cache: None,
 		});
 		
 		Ok(World {
@@ -184,7 +182,7 @@ impl World {
 		rpass.set_pipeline(&self.pipeline);
 		rpass.set_vertex_buffer(0, self.vertex_buf.slice(..));
 		rpass.set_bind_group(0, &self.bind_group, &[]);
-		rpass.set_push_constants(wgpu::ShaderStages::VERTEX_FRAGMENT, 0, bytemuck::bytes_of(&Pc { model }));
+		rpass.set_immediates(0, bytemuck::bytes_of(&Pc { model }));
 		rpass.pop_debug_group();
 		rpass.insert_debug_marker("Draw world!");
 		rpass.draw(0..6, 0..1);
