@@ -1,6 +1,6 @@
-use crate::application::render::Render;
+use crate::application::Application;
 
 #[derive(Debug)]
 pub enum UserEvent {
-	GraphicsReady(Render),
+	Initialized(Application),
 }

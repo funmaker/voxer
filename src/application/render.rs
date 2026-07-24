@@ -1,15 +1,13 @@
+use std::sync::Arc;
 use anyhow::Result;
 use bytemuck::{Pod, Zeroable};
 use wgpu::{Adapter, Buffer, BufferUsages, CompositeAlphaMode, Device, ExperimentalFeatures, Instance, MemoryHints, Queue, Surface, SurfaceCapabilities, SurfaceConfiguration, TextureFormat, TextureView, Trace};
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
-use winit::event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy};
 use winit::window::Window;
 use crate::platform;
-use crate::platform::RcWindow;
 use crate::utils::entropy::ENTROPY;
 use crate::utils::math::{Mat4, Vec3};
-use crate::utils::user_events::UserEvent;
 
 pub const TIMING_QUERY_COUNT: u32 = 32;
 
@@ -26,7 +24,7 @@ pub struct Commons {
 
 #[derive(Debug)]
 pub struct Render {
-	pub window: RcWindow,
+	pub window: Arc<Window>,
 	pub instance: Instance,
 	pub surface: Surface<'static>,
 	pub adapter: Adapter,
@@ -41,7 +39,7 @@ pub struct Render {
 }
 
 impl Render {
-	pub async fn new(window: impl Into<RcWindow>) -> Result<Render> {
+	pub async fn new(window: impl Into<Arc<Window>>) -> Result<Render> {
 		let window = window.into();
 		let size = window.inner_size();
 		
@@ -141,47 +139,5 @@ impl Render {
 	
 	pub fn request_redraw(&self) {
 		self.window.request_redraw();
-	}
-}
-
-pub enum RenderState {
-	Init(EventLoopProxy<UserEvent>),
-	Initializing,
-	Ready(Render),
-}
-
-impl RenderState {
-	pub fn new(event_loop: &EventLoop<UserEvent>) -> RenderState {
-		RenderState::Init(event_loop.create_proxy())
-	}
-	
-	pub fn can_init(&mut self) -> bool {
-		matches!(self, RenderState::Init(..))
-	}
-	
-	pub fn init(&mut self, event_loop: &ActiveEventLoop) -> Result<()> {
-		if !self.can_init() { return Ok(()) }
-		
-		let proxy = match std::mem::replace(self, RenderState::Initializing) {
-			RenderState::Init(proxy) => proxy,
-			_ => unreachable!(),
-		};
-		
-		let win_attr =
-			Window::default_attributes()
-			       .with_title("Voxer")
-			       .with_inner_size(PhysicalSize::new(1280, 720))
-			       .with_transparent(true);
-		
-		let win_attr = platform::set_window_attributes(win_attr)?;
-		
-		let window = event_loop.create_window(win_attr)?;
-		
-		platform::spawn_future(async move {
-			let graphics = Render::new(window).await.expect("Failed to create graphics");
-			proxy.send_event(UserEvent::GraphicsReady(graphics)).expect("Failed to send graphics ready event");
-		});
-		
-		Ok(())
 	}
 }

@@ -6,10 +6,11 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use anyhow::Result;
 
 pub mod platform;
-mod application;
-mod utils;
+pub mod application;
+pub mod utils;
+pub mod harness;
 
-use crate::application::Application;
+use crate::harness::ApplicationHarness;
 use crate::utils::config::Config;
 use crate::utils::user_events::UserEvent;
 
@@ -21,7 +22,9 @@ fn main() -> Result<()> {
     let event_loop = EventLoop::<UserEvent>::with_user_event().build()?;
     event_loop.set_control_flow(ControlFlow::Poll); // Run continuously
     
-    platform::run_app(Application::new(&event_loop, config), event_loop)?;
+    let harness = ApplicationHarness::new(&event_loop, config);
+    
+    platform::run_app(harness, event_loop)?;
     
     Ok(())
 }

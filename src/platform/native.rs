@@ -19,8 +19,6 @@ pub fn run_app<T>(mut app: impl ApplicationHandler<T> + 'static, event_loop: Eve
 }
 
 pub fn set_window_attributes(win_attr: WindowAttributes) -> anyhow::Result<WindowAttributes> {
-	let win_attr = win_attr.with_title("WebGPU example");
-	
 	Ok(win_attr)
 }
 

@@ -266,7 +266,7 @@ impl Benchmark {
 			
 			Window::new(title)
 				.open(&mut open)
-				.default_width(960.0)
+				.default_width(960.0 / 2.0)
 				.show(ctx, |ui| self.on_gui(ui, target_fps));
 			
 			self.open = open;

@@ -1,9 +1,6 @@
-struct Commons {
-  view: mat4x4f,
-  proj: mat4x4f,
-  frame: u32,
-}
-@group(0) @binding(0) var<uniform> commons: Commons;
+#import commons.wgsl as Commons
+
+@group(0) @binding(0) var<uniform> commons: Commons::Commons;
 
 struct Material {
   col: vec4f,

@@ -1,16 +1,22 @@
 [package]
 name = "voxer"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [features]
-default = []
+default = ["native"]
 webgl = ["wgpu/webgl"]
 webgpu = ["wgpu/webgpu"]
+native = [
+    "wgpu/dx12",
+    "wgpu/metal",
+    "wgpu/gles",
+    "wgpu/vulkan"
+]
 
 [dependencies]
 anyhow = "1.0.104"
-wgpu = "29.0.0"
+wgpu = { version = "29.0.0", default-features = false, features = ["std", "parking_lot", "wgsl"] }
 winit = "0.30.13"
 bytemuck = { version = "1.25.1", features = ["derive"] }
 dot_vox = { version = "5.2.0", default-features = false }
@@ -32,3 +38,6 @@ console_error_panic_hook = "0.1.7"
 console_log = "1.1.0"
 wasm-bindgen-futures = "0.4.76"
 getrandom = { version = "0.4.3", features = ["wasm_js"] }
+
+[patch.crates-io]
+include-wgsl-oil = { path = "./deps/include-wgsl-oil" }
