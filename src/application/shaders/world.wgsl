@@ -1,6 +1,6 @@
-#import commons.wgsl as Commons
+#import commons.wgsl
 
-@group(0) @binding(0) var<uniform> commons: Commons::Commons;
+@group(0) @binding(0) var<uniform> commons: commons::Commons;
 
 struct Material {
   col: vec4f,
