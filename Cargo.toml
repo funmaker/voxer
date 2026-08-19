@@ -21,10 +21,10 @@ winit = "0.30.13"
 bytemuck = { version = "1.25.1", features = ["derive"] }
 dot_vox = { version = "5.2.0", default-features = false }
 nalgebra = { version = "0.35.0", features = ["bytemuck"] }
-egui = "0.35.0"
-egui-wgpu = "0.35.0"
-egui-winit = { version = "0.35.0", default-features = false, features = ["links", "wayland", "x11"] }
-egui_plot = "0.36.0"
+egui = "0.36.1"
+egui-wgpu = "0.36.1"
+egui-winit = { version = "0.36.1", default-features = false, features = ["links", "wayland", "x11"] }
+egui_plot = "0.37.0"
 log = "0.4.33"
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
@@ -42,9 +42,3 @@ getrandom = { version = "0.4.3", features = ["wasm_js"] }
 nalgebra = { version = "0.35.0", features = ["bytemuck"] }
 wesl = { version = "0.4.1", features = ["naga-ext"] }
 wgsl_kiss = { path = "deps/wgsl_kiss" }
-
-[patch.crates-io]
-egui = { git = "https://github.com/emilk/egui.git", rev = "3fcadda5ba186c9a0f8c1546e2a3fefae6b1e863" }
-egui-wgpu = { git = "https://github.com/emilk/egui.git", rev = "3fcadda5ba186c9a0f8c1546e2a3fefae6b1e863" }
-egui-winit = { git = "https://github.com/emilk/egui.git", rev = "3fcadda5ba186c9a0f8c1546e2a3fefae6b1e863" }
-emath = { git = "https://github.com/emilk/egui.git", rev = "3fcadda5ba186c9a0f8c1546e2a3fefae6b1e863" }

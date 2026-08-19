@@ -44,7 +44,7 @@ impl Gui {
 		
 		let mut error = None;
 		let raw_input = self.state.take_egui_input(&app.render.window);
-		let full_output = self.ctx().run_ui(raw_input, |ui| {
+		let mut full_output = self.ctx().run_ui(raw_input, |ui| {
 			let result = callback(app, ui);
 			if let Err(err) = result {
 				error = Some(err);
@@ -65,8 +65,10 @@ impl Gui {
 		
 		let tris = self.state.egui_ctx().tessellate(full_output.shapes, self.state.egui_ctx().pixels_per_point());
 		
-		for (id, image_delta) in &full_output.textures_delta.set {
-			self.renderer.update_texture(&app.render.device, &app.render.queue, *id, &image_delta);
+		for (id, image_deltas) in full_output.textures_delta.set.drain() {
+			for image_delta in image_deltas {
+				self.renderer.update_texture(&app.render.device, &app.render.queue, id, &image_delta);
+			}
 		}
 		
 		self.renderer.update_buffers(&app.render.device, &app.render.queue, encoder, &tris, &screen_descriptor);
@@ -90,8 +92,8 @@ impl Gui {
 		
 		self.renderer.render(&mut rpass.forget_lifetime(), &tris, &screen_descriptor);
 		
-		for x in &full_output.textures_delta.free {
-			self.renderer.free_texture(x)
+		for x in full_output.textures_delta.free.drain() {
+			self.renderer.free_texture(&x)
 		}
 		
 		Ok(())
