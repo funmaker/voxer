@@ -15,7 +15,6 @@ mod bench;
 mod gpu_bench;
 mod gui;
 mod input;
-mod shaders;
 mod world;
 
 use crate::utils::config::Config;
@@ -137,7 +136,7 @@ impl Application {
 		Ok(())
 	}
 	
-	pub fn on_device_event(&mut self, event_loop: &ActiveEventLoop, _device_id: DeviceId, event: DeviceEvent) -> Result<()> {
+	pub fn on_device_event(&mut self, _event_loop: &ActiveEventLoop, _device_id: DeviceId, event: DeviceEvent) -> Result<()> {
 		if !self.cursor_trap { return Ok(()); }
 		
 		match event {
@@ -254,7 +253,7 @@ impl Application {
 		self.cpu_bench.tick("Render Gui");
 		
 		self.render.queue.submit(Some(encoder.finish()));
-		frame.present();
+		self.render.queue.present(frame);
 		
 		self.cpu_bench.tick("Render End");
 		

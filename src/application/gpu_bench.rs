@@ -83,7 +83,13 @@ impl GpuBenchmark {
 			}
 			
 			let mut gpu_bench = bench.lock().unwrap();
-			let view = read_buffer_capture.slice(..output_len).get_mapped_range();
+			let view = match read_buffer_capture.slice(..output_len).get_mapped_range() {
+				Ok(view) => view,
+				Err(err) => {
+					error!("GPU Bench Buffer slice error: {err}");
+					return;
+				}
+			};
 			let timestamps: &[u64] = bytemuck::cast_slice(&view);
 			
 			gpu_bench.new_frame();

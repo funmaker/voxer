@@ -51,6 +51,7 @@ impl Render {
 			power_preference: wgpu::PowerPreference::default(),
 			force_fallback_adapter: false,
 			compatible_surface: Some(&surface),
+			apply_limit_buckets: false,
 		}).await?;
 		
 		let required_features = wgpu::Features::IMMEDIATES;

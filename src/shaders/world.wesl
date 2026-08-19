@@ -1,6 +1,6 @@
-#import commons.wgsl
+import package::commons::Commons;
 
-@group(0) @binding(0) var<uniform> commons: commons::Commons;
+@group(0) @binding(0) var<uniform> commons: Commons;
 
 struct Material {
   col: vec4f,
@@ -27,6 +27,10 @@ var<immediate> pc: Pc;
 const pi = radians(180.0);
 const tau = radians(360.0);
 
+struct Vertex {
+	@location(0) position: vec4f,
+};
+
 struct VertexOutput {
     @builtin(position) position: vec4f,
     @location(0) orig: vec4f,
@@ -35,15 +39,13 @@ struct VertexOutput {
 };
 
 @vertex
-fn vs_main(
-  @location(0) position: vec4f,
-) -> VertexOutput {
+fn vs_main(vertex: Vertex) -> VertexOutput {
   var result: VertexOutput;
   
-  result.position = position;
-  result.pos2 = position;
+  result.position = vertex.position;
+  result.pos2 = vertex.position;
   result.orig = pc.model * commons.view * vec4(0.0, 0.0, 0.0, 1.0);
-  result.targ = pc.model * commons.view * vec4(position.x, position.y, -1.0, 1.0);
+  result.targ = pc.model * commons.view * vec4(vertex.position.x, vertex.position.y, -1.0, 1.0);
   
   return result;
 }

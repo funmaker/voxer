@@ -10,6 +10,10 @@ pub type IVec2 = nalgebra::Vector2<i32>;
 pub type IVec3 = nalgebra::Vector3<i32>;
 pub type IVec4 = nalgebra::Vector4<i32>;
 
+pub type UVec2 = nalgebra::Vector2<u32>;
+pub type UVec3 = nalgebra::Vector3<u32>;
+pub type UVec4 = nalgebra::Vector4<u32>;
+
 pub type Point2 = nalgebra::Point2<f32>;
 pub type Point3 = nalgebra::Point3<f32>;
 pub type Point4 = nalgebra::Point4<f32>;

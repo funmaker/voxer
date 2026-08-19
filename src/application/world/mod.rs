@@ -1,27 +1,18 @@
-use std::borrow::Cow;
-use std::mem::size_of;
 use anyhow::{Error, Result};
 use bytemuck::{Pod, Zeroable};
-use wgpu::{BindGroup, Buffer, BufferUsages, PipelineLayoutDescriptor, RenderPass, RenderPipeline};
+use wgpu::{Buffer, BufferUsages, RenderPass, RenderPipeline};
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 
 mod model;
 
-use crate::utils::math::{Mat4, Vec3};
-use crate::application::render::{Commons, Render};
-use crate::application::shaders;
-use model::Model;
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct Vertex {
-	pos: [f32; 4],
-}
+use crate::utils::math::{Mat4, Vec3, Vec4};
+use crate::application::render::Render;
+use crate::shaders::world::{ self as shader, Model, Vertex };
 
 impl Vertex {
 	const fn new(x: f32, y: f32, z: f32) -> Self {
 		Vertex {
-			pos: [x, y, z, 1.0],
+			position: Vec4::new(x, y, z, 1.0),
 		}
 	}
 }
@@ -38,49 +29,13 @@ pub struct World {
 	pub center: Vec3,
 	vertex_buf: Buffer,
 	pipeline: RenderPipeline,
-	bind_group: BindGroup,
+	bind_group: shader::bind_groups::BindGroup0,
 }
 
 impl World {
 	pub fn new(model_path: &str, render: &Render) -> Result<Self> {
 		let vox_data = dot_vox::load(model_path).map_err(Error::msg)?;
-		let (model, center) = Model::new(&vox_data);
-		
-		let bind_group_layout = render.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-			label: Some("World Bind Group Layout"),
-			entries: &[
-				wgpu::BindGroupLayoutEntry {
-					binding: 0,
-					visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-					ty: wgpu::BindingType::Buffer {
-						ty: wgpu::BufferBindingType::Uniform,
-						has_dynamic_offset: false,
-						min_binding_size: wgpu::BufferSize::new(size_of::<Commons>() as u64),
-					},
-					count: None,
-				},
-				wgpu::BindGroupLayoutEntry {
-					binding: 1,
-					visibility: wgpu::ShaderStages::FRAGMENT,
-					ty: wgpu::BindingType::Buffer {
-						ty: wgpu::BufferBindingType::Storage { read_only: true },
-						has_dynamic_offset: false,
-						min_binding_size: wgpu::BufferSize::new(Model::min_binding_size() as u64),
-					},
-					count: None,
-				},
-				wgpu::BindGroupLayoutEntry {
-					binding: 2,
-					visibility: wgpu::ShaderStages::FRAGMENT,
-					ty: wgpu::BindingType::Texture {
-						sample_type: wgpu::TextureSampleType::Float { filterable: false },
-						view_dimension: wgpu::TextureViewDimension::D2,
-						multisampled: false,
-					},
-					count: None,
-				},
-			],
-		});
+		let (model, center) = Model::load(&vox_data);
 		
 		let voxel_head_buf = render.device.create_buffer_init(&BufferInitDescriptor {
 			label: Some("World Voxel Buffer"),
@@ -88,23 +43,10 @@ impl World {
 			usage: BufferUsages::STORAGE,
 		});
 		
-		let bind_group = render.device.create_bind_group(&wgpu::BindGroupDescriptor {
-			label: Some("World Bind Group"),
-			layout: &bind_group_layout,
-			entries: &[
-				wgpu::BindGroupEntry {
-					binding: 0,
-					resource: render.commons_buf.as_entire_binding(),
-				},
-				wgpu::BindGroupEntry {
-					binding: 1,
-					resource: voxel_head_buf.as_entire_binding(),
-				},
-				wgpu::BindGroupEntry {
-					binding: 2,
-					resource: wgpu::BindingResource::TextureView(&render.entropy_tex),
-				},
-			],
+		let bind_group = shader::bind_groups::BindGroup0::from_bindings(&render.device, shader::bind_groups::BindGroupLayout0 {
+			commons: render.commons_buf.as_entire_buffer_binding(),
+			model: voxel_head_buf.as_entire_buffer_binding(),
+			entropy_tex: &render.entropy_tex,
 		});
 		
 		let vertex_buf = render.device.create_buffer_init(&BufferInitDescriptor {
@@ -120,44 +62,14 @@ impl World {
 			usage: BufferUsages::VERTEX,
 		});
 		
-		let pipeline_layout = render.device.create_pipeline_layout(&PipelineLayoutDescriptor {
-			label: Some("World Pipeline Layout"),
-			bind_group_layouts: &[Some(&bind_group_layout)],
-			immediate_size: size_of::<Pc>() as u32,
-		});
-		
-		let shader = render.device.create_shader_module(wgpu::ShaderModuleDescriptor {
-			label: Some("World Shader"),
-			source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(shaders::world::SOURCE)),
-		});
-		
-		let vertex_buffers = [wgpu::VertexBufferLayout {
-			array_stride: size_of::<Vertex>() as wgpu::BufferAddress,
-			step_mode: wgpu::VertexStepMode::Vertex,
-			attributes: &[
-				wgpu::VertexAttribute {
-					format: wgpu::VertexFormat::Float32x4,
-					offset: 0,
-					shader_location: 0,
-				},
-			],
-		}];
+		let shader = shader::create_shader_module(&render.device);
+		let pipeline_layout = shader::create_pipeline_layout(&render.device);
 		
 		let pipeline = render.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
 			label: Some("World Pipeline"),
 			layout: Some(&pipeline_layout),
-			vertex: wgpu::VertexState {
-				module: &shader,
-				entry_point: Some("vs_main"),
-				buffers: &vertex_buffers,
-				compilation_options: Default::default(),
-			},
-			fragment: Some(wgpu::FragmentState {
-				module: &shader,
-				entry_point: Some("fs_main"),
-				compilation_options: Default::default(),
-				targets: &[Some(render.swapchain_format.into())],
-			}),
+			vertex: crate::shaders::vertex_state(&shader, &shader::vs_main_entry(wgpu::VertexStepMode::Vertex)),
+			fragment: Some(crate::shaders::fragment_state(&shader, &shader::fs_main_entry([Some(render.swapchain_format.into())]))),
 			primitive: wgpu::PrimitiveState::default(),
 			depth_stencil: None,
 			multisample: wgpu::MultisampleState::default(),
@@ -166,7 +78,7 @@ impl World {
 		});
 		
 		Ok(World {
-			size: Vec3::new(model.width as f32, model.height as f32, model.depth as f32),
+			size: Vec3::new(model.size.x as f32, model.size.y as f32, model.size.z as f32),
 			center,
 			model,
 			vertex_buf,
@@ -181,7 +93,7 @@ impl World {
 		rpass.push_debug_group("Prepare world data for draw.");
 		rpass.set_pipeline(&self.pipeline);
 		rpass.set_vertex_buffer(0, self.vertex_buf.slice(..));
-		rpass.set_bind_group(0, &self.bind_group, &[]);
+		shader::set_bind_groups(rpass, &self.bind_group);
 		rpass.set_immediates(0, bytemuck::bytes_of(&Pc { model }));
 		rpass.pop_debug_group();
 		rpass.insert_debug_marker("Draw world!");

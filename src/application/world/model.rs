@@ -1,25 +1,11 @@
-use std::alloc::Layout;
-use std::{alloc, ptr, slice};
-use std::mem::size_of_val_raw;
-use std::ptr::Pointee;
-use bytemuck::{Pod, Zeroable};
 use dot_vox::SceneNode;
 use nalgebra::{point, Point, vector};
 
-use crate::utils::math::Vec3;
-
-#[repr(C, align(4))]
-pub struct Model {
-	pub width: u32,
-	pub height: u32,
-	pub depth: u32,
-	_pad: u32,
-	pub palette: [Material; 256],
-	pub voxels: [u8],
-}
+use crate::shaders::world::{Material, Model};
+use crate::utils::math::{IVec4, Vec3, Vec4};
 
 impl Model {
-	pub fn new(vox: &dot_vox::DotVoxData) -> (Box<Self>, Vec3) {
+	pub fn load(vox: &dot_vox::DotVoxData) -> (Box<Model>, Vec3) {
 		let scene = parse_scene(vox);
 		
 		let mut aabb_min = vector!(i32::MAX, i32::MAX, i32::MAX);
@@ -42,8 +28,10 @@ impl Model {
 		let width = (aabb_max.x - aabb_min.x + 1) as u32;
 		let height = (aabb_max.y - aabb_min.y + 1) as u32;
 		let depth = (aabb_max.z - aabb_min.z + 1) as u32;
+		let voxel_count: usize = (width as usize * height as usize * depth as usize).div_ceil(4) * 4;
 		
-		let mut this = Model::new_empty(width, height, depth);
+		let mut palette = [Material::TRANSPARENT; 256];
+		let mut voxels = vec![0; voxel_count];
 		
 		for (n, entry) in vox.palette.iter().copied().enumerate().take(255) {
 			let mut palette_mat: Material = entry.into();
@@ -66,7 +54,7 @@ impl Model {
 				}
 			}
 			
-			this.palette[n + 1] = palette_mat;
+			palette[n + 1] = palette_mat;
 		}
 		
 		for (transform, model_id) in scene.iter().copied() {
@@ -78,69 +66,27 @@ impl Model {
 				assert!(position.x >= 0);
 				assert!(position.y >= 0);
 				assert!(position.z >= 0);
-				assert!(position.x < this.width as i32);
-				assert!(position.y < this.height as i32);
-				assert!(position.z < this.depth as i32);
+				assert!(position.x < width as i32);
+				assert!(position.y < height as i32);
+				assert!(position.z < depth as i32);
 				
-				this.voxels[
+				voxels[
 					position.x as usize
-					+ position.y as usize * this.width as usize
-					+ position.z as usize * this.width as usize * this.height as usize
+					+ position.y as usize * width as usize
+					+ position.z as usize * width as usize * height as usize
 				] = voxel.i + 1;
 			}
 		}
 		
 		let center = (-aabb_min).cast();
 		
-		(this, center)
-	}
-	
-	pub fn as_bytes(&self) -> &[u8] {
-		assert!(self.palette.len() % align_of_val(self) == 0);
+		let model = Model {
+			size: IVec4::new(width as i32, height as i32, depth as i32, 0),
+			palette,
+			voxels: bytemuck::cast_slice(&voxels),
+		};
 		
-		// SAFETY: self must have no padding
-		unsafe {
-			slice::from_raw_parts(self as *const _ as *const u8, size_of_val(self))
-		}
-	}
-	
-	pub fn min_binding_size() -> usize {
-		// it seems that wgpu incorrectly rounds up min buffer binding size to struct alignment for some reason???
-		// https://www.w3.org/TR/webgpu/#minimum-buffer-binding-size
-		// TODO: wtf
-		unsafe { size_of_val_raw(ptr::from_raw_parts::<Self>(ptr::null::<()>(), 16)) }
-	}
-	
-	pub fn size(&self) -> Vec3 {
-		Vec3::new(self.width as f32, self.height as f32, self.depth as f32)
-	}
-	
-	fn new_empty(width: u32, height: u32, depth: u32) -> Box<Self> {
-		let voxel_count: usize = (width as usize * height as usize * depth as usize).div_ceil(4) * 4;
-		
-		// SAFETY: Statically known part of Self must fit within isize::MAX bytes (very likely)
-		// Size of entire allocation must be no larger isize::MAX
-		// Self must be made of plain data that can be zeroed
-		unsafe {
-			let header_size = size_of_val_raw(ptr::from_raw_parts::<Self>(ptr::null::<()>(), 0));
-			assert!(voxel_count < isize::MAX as usize - header_size);
-			
-			let metadata: <Self as Pointee>::Metadata = voxel_count;
-			let ptr: *const Self = ptr::from_raw_parts(ptr::null::<()>(), metadata);
-			let layout = Layout::for_value_raw(ptr);
-			let this = alloc::alloc_zeroed(layout);
-			if this.is_null() {
-				alloc::handle_alloc_error(layout);
-			}
-			
-			let mut this: Box<Self> = Box::from_raw(ptr::from_raw_parts_mut(this, metadata));
-			this.width = width;
-			this.height = height;
-			this.depth = depth;
-			this.palette = [Material::TRANSPARENT; _];
-			
-			this
-		}
+		(model.into(), center)
 	}
 }
 
@@ -220,28 +166,15 @@ fn parse_scene_impl(vox: &dot_vox::DotVoxData, node: u32, mut transform: VoxTran
 	}
 }
 
-
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-pub struct Material {
-	red: f32,
-	green: f32,
-	blue: f32,
-	alpha: f32,
-	lum: f32,
-	rough: f32,
-	ior: f32,
-	metal: f32,
-}
-
 impl Material {
-	const fn new(red: f32, green: f32, blue: f32, alpha: f32) -> Self {
+	const fn from_color(red: f32, green: f32, blue: f32, alpha: f32) -> Self {
 		Material {
-			red,
-			green,
-			blue,
-			alpha,
+			col: Vec4::new(
+				red,
+				green,
+				blue,
+				alpha,
+			),
 			lum: 0.0,
 			rough: 1.0,
 			ior: 0.0,
@@ -249,12 +182,12 @@ impl Material {
 		}
 	}
 	
-	const TRANSPARENT: Self = Self::new(0.0, 0.0, 0.0, 0.0);
+	const TRANSPARENT: Self = Self::from_color(0.0, 0.0, 0.0, 0.0);
 }
 
 impl From<dot_vox::Color> for Material {
 	fn from(value: dot_vox::Color) -> Material {
-		Material::new(
+		Material::from_color(
 			value.r as f32 / 255.0,
 			value.g as f32 / 255.0,
 			value.b as f32 / 255.0,

@@ -1,6 +1,8 @@
 #![feature(layout_for_ptr)]
 #![feature(ptr_metadata)]
 #![feature(int_roundings)]
+#![feature(offset_of_slice)]
+#![feature(trivial_bounds)]
 
 use winit::event_loop::{ControlFlow, EventLoop};
 use anyhow::Result;
@@ -9,6 +11,7 @@ pub mod platform;
 pub mod application;
 pub mod utils;
 pub mod harness;
+pub mod shaders;
 
 use crate::harness::ApplicationHarness;
 use crate::utils::config::Config;

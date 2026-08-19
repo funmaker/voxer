@@ -16,7 +16,7 @@ native = [
 
 [dependencies]
 anyhow = "1.0.104"
-wgpu = { version = "29.0.0", default-features = false, features = ["std", "parking_lot", "wgsl"] }
+wgpu = { version = "30.0.0", default-features = false, features = ["std", "parking_lot", "wgsl"] }
 winit = "0.30.13"
 bytemuck = { version = "1.25.1", features = ["derive"] }
 dot_vox = { version = "5.2.0", default-features = false }
@@ -25,7 +25,6 @@ egui = "0.35.0"
 egui-wgpu = "0.35.0"
 egui-winit = { version = "0.35.0", default-features = false, features = ["links", "wayland", "x11"] }
 egui_plot = "0.36.0"
-include-wgsl-oil = "0.2.9"
 log = "0.4.33"
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
@@ -39,5 +38,13 @@ console_log = "1.1.0"
 wasm-bindgen-futures = "0.4.76"
 getrandom = { version = "0.4.3", features = ["wasm_js"] }
 
+[build-dependencies]
+nalgebra = { version = "0.35.0", features = ["bytemuck"] }
+wesl = { version = "0.4.1", features = ["naga-ext"] }
+wgsl_kiss = { path = "deps/wgsl_kiss" }
+
 [patch.crates-io]
-include-wgsl-oil = { path = "./deps/include-wgsl-oil" }
+egui = { git = "https://github.com/emilk/egui.git", rev = "3fcadda5ba186c9a0f8c1546e2a3fefae6b1e863" }
+egui-wgpu = { git = "https://github.com/emilk/egui.git", rev = "3fcadda5ba186c9a0f8c1546e2a3fefae6b1e863" }
+egui-winit = { git = "https://github.com/emilk/egui.git", rev = "3fcadda5ba186c9a0f8c1546e2a3fefae6b1e863" }
+emath = { git = "https://github.com/emilk/egui.git", rev = "3fcadda5ba186c9a0f8c1546e2a3fefae6b1e863" }
