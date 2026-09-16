@@ -40,5 +40,5 @@ getrandom = { version = "0.4.3", features = ["wasm_js"] }
 
 [build-dependencies]
 nalgebra = { version = "0.35.0", features = ["bytemuck"] }
-wesl = { version = "0.4.1", features = ["naga-ext"] }
+wesl = { version = "0.4.4", features = ["naga-ext"] }
 wgsl_kiss = { path = "deps/wgsl_kiss" }

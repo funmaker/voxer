@@ -20,7 +20,7 @@ use crate::utils::user_events::UserEvent;
 fn main() -> Result<()> {
     platform::init_logging().expect("Couldn't initialize logger");
     
-    let config = Config::default();
+    let config = Config::from_args();
     
     let event_loop = EventLoop::<UserEvent>::with_user_event().build()?;
     event_loop.set_control_flow(ControlFlow::Poll); // Run continuously

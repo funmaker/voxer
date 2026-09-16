@@ -2,8 +2,7 @@ use std::fmt;
 use std::time::Instant;
 use anyhow::{anyhow, Result};
 use egui::Ui;
-use nalgebra::{vector, Matrix};
-use wgpu::CurrentSurfaceTexture;
+use wgpu::{CurrentSurfaceTexture, SubmissionIndex};
 use winit::dpi::PhysicalPosition;
 use winit::event::{DeviceEvent, DeviceId, ElementState, KeyEvent, MouseButton, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
@@ -19,7 +18,7 @@ mod world;
 
 use crate::utils::config::Config;
 use crate::utils::fps_counter::FpsCounter;
-use crate::utils::math::{self, Isometry3, Translation3, Vec3};
+use crate::utils::math::{self, Translation3};
 use crate::application::gui::Gui;
 use crate::application::gpu_bench::WriteTimestamp;
 use crate::application::input::Key;
@@ -34,8 +33,6 @@ pub struct Application {
 	pub input: Input,
 	pub world: World,
 	pub config: Config,
-	pub pov: Isometry3,
-	pub pov_rot: (f32, f32, f32),
 	pub cpu_bench: Benchmark,
 	pub gpu_bench: Option<GpuBenchmark>,
 	pub last_frame: Instant,
@@ -43,13 +40,11 @@ pub struct Application {
 	gui: Option<Gui>,
 	fps_counter: FpsCounter,
 	cursor_trap: bool,
+	last_submission: Option<SubmissionIndex>,
 }
 
 impl Application {
 	pub async fn new(window: Window, config: Config) -> Result<Self> {
-		let pov_rot = (0.0, 0.0, 0.0);
-		let pov = Isometry3::from_parts(Vec3::new(0.0, 64.0, 0.0).into(), math::from_euler(pov_rot.0, pov_rot.1, pov_rot.2));
-		
 		let render = Render::new(window).await?;
 		let world = World::new(&config.world_model, &render)?;
 		let gui = Gui::new(&render);
@@ -62,8 +57,6 @@ impl Application {
 			input: Input::new(),
 			world,
 			config,
-			pov,
-			pov_rot,
 			cpu_bench,
 			gpu_bench,
 			last_frame: Instant::now(),
@@ -71,6 +64,7 @@ impl Application {
 			gui: Some(gui),
 			fps_counter: FpsCounter::new(),
 			cursor_trap: false,
+			last_submission: None,
 		})
 	}
 	
@@ -165,16 +159,16 @@ impl Application {
 		if self.input.keyboard.pressed(Key::ShiftLeft) { speed *= 2.0; }
 		let b2f = |key: Key| if self.input.keyboard.pressed(key) { speed } else { 0.0 };
 		
-		self.pov *= Translation3::new(
+		self.render.pov *= Translation3::new(
 			b2f(Key::KeyD) - b2f(Key::KeyA),
 			b2f(Key::Space) - b2f(Key::ControlLeft),
 			b2f(Key::KeyS) - b2f(Key::KeyW),
 		);
 		
-		self.pov_rot.0 = (self.pov_rot.0 + self.input.mouse.axis(1) * -0.01).clamp(-math::PI / 2.0, math::PI / 2.0);
-		self.pov_rot.1 = self.pov_rot.1 + self.input.mouse.axis(0) * -0.01;
+		self.render.pov_rot.0 = (self.render.pov_rot.0 + self.input.mouse.axis(1) * -0.01).clamp(-math::PI / 2.0, math::PI / 2.0);
+		self.render.pov_rot.1 = self.render.pov_rot.1 + self.input.mouse.axis(0) * -0.01;
 		
-		self.pov.rotation = math::from_euler(self.pov_rot.0, self.pov_rot.1, self.pov_rot.2);
+		self.render.pov.rotation = math::from_euler(self.render.pov_rot.0, self.render.pov_rot.1, self.render.pov_rot.2);
 		
 		if self.input.keyboard.down(Key::KeyP) { self.cpu_bench.toggle_open(); }
 		if self.input.keyboard.down(Key::KeyO) {
@@ -197,6 +191,15 @@ impl Application {
 	fn on_render(&mut self) -> Result<()> {
 		self.fps_counter.tick();
 		
+		if let Some(submission) = self.last_submission.take() {
+			self.render.device.poll(wgpu::PollType::Wait {
+				submission_index: Some(submission),
+				timeout: None,
+			})?;
+		}
+		
+		self.cpu_bench.tick("Wait for last frame");
+		
 		if let Some(gpu_bench) = &mut self.gpu_bench {
 			gpu_bench.new_frame(&self.render);
 		}
@@ -206,13 +209,19 @@ impl Application {
 			CurrentSurfaceTexture::Suboptimal(surface) => surface,
 			err => return Err(anyhow!("Failed to acquire next swap chain texture: {:?}", err)),
 		};
-		let aspect_ratio = frame.texture.width() as f32 / frame.texture.height() as f32;
 		
-		self.render.commons.view = self.pov.to_homogeneous() * Matrix::new_nonuniform_scaling(&vector!(1.0, 1.0 / aspect_ratio, 1.0));
 		self.render.commons.frame = self.render.commons.frame.wrapping_add(1);
 		self.render.update_commons();
 		
 		let mut encoder = self.render.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Main Render Encoder") });
+		
+		self.gpu_bench_tick("Render Setup", &mut encoder);
+		self.cpu_bench.tick("Render Setup");
+		
+		self.world.before_render(&mut encoder, &self.render);
+		
+		self.gpu_bench_tick("Before Render", &mut encoder);
+		self.cpu_bench.tick("Before Render");
 		
 		let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
 		let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -232,10 +241,7 @@ impl Application {
 			multiview_mask: None,
 		});
 		
-		self.gpu_bench_tick("Render Setup", &mut rpass);
-		self.cpu_bench.tick("Render Setup");
-		
-		self.world.render(&mut rpass);
+		self.world.render(&mut rpass, &self.render);
 		
 		// TODO: fix lifetimes
 		if let Some(gpu_bench) = &mut self.gpu_bench {
@@ -247,12 +253,17 @@ impl Application {
 		
 		self.gpu_bench_tick("Pass End", &mut encoder);
 		
+		self.world.after_render(&mut encoder);
+		
+		self.gpu_bench_tick("After Render", &mut encoder);
+		self.cpu_bench.tick("After Render");
+		
 		self.with_gui(|app, gui| gui.on_render(app, &mut encoder, &view, |app, ui| app.on_gui(ui)))?;
 		
 		self.gpu_bench_tick("Render Gui", &mut encoder);
 		self.cpu_bench.tick("Render Gui");
 		
-		self.render.queue.submit(Some(encoder.finish()));
+		self.last_submission = Some(self.render.queue.submit(Some(encoder.finish())));
 		self.render.queue.present(frame);
 		
 		self.cpu_bench.tick("Render End");
@@ -278,6 +289,17 @@ impl Application {
 			})
 			.show(ui, |ui| {
 				ui.label(format!("FPS: {}", self.fps_counter.fps().ceil()));
+				
+				{
+					let mut old_val = math::from_radians(self.render.fov);
+					if ui.add(Slider::new(&mut old_val, 0.1..=179.0).text("FoV")).changed() {
+						self.render.fov = math::to_radians(old_val);
+					}
+				}
+				
+				ui.separator();
+				
+				self.world.gui(ui);
 			});
 		
 		self.cpu_bench.on_gui_window(ui, "CPU Timings", target_fps);

@@ -43,12 +43,12 @@ impl ApplicationHandler<UserEvent> for ApplicationHarness {
 					.with_inner_size(PhysicalSize::new(1280, 720))
 					.with_transparent(true);
 			
-			let win_attr = platform::set_window_attributes(win_attr).expect("Error while setting window attributes.");
-			let window = event_loop.create_window(win_attr).expect("Error during window creation.");
+			let win_attr = platform::set_window_attributes(win_attr).expect("Error while setting window attributes");
+			let window = event_loop.create_window(win_attr).expect("Error during window creation");
 			
 			platform::spawn_future(async move {
-				let application = Application::new(window, config).await.expect("Error during initialization.");
-				proxy.send_event(UserEvent::Initialized(application)).expect("Error while sending init event to event loop.");
+				let application = Application::new(window, config).await.expect("Error during initialization");
+				proxy.send_event(UserEvent::Initialized(application)).expect("Error while sending init event to event loop");
 			});
 		}
 	}
@@ -64,13 +64,13 @@ impl ApplicationHandler<UserEvent> for ApplicationHarness {
 	fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
 		let ApplicationHarness::Ready { application } = self else { return };
 		
-		application.on_window_event(event_loop, window_id, event).expect("Error in window event handler.");
+		application.on_window_event(event_loop, window_id, event).expect("Error in window event handler");
 	}
 	
 	fn device_event(&mut self, event_loop: &ActiveEventLoop, device_id: DeviceId, event: DeviceEvent) {
 		let ApplicationHarness::Ready { application } = self else { return };
 		
-		application.on_device_event(event_loop, device_id, event).expect("Error in device event handler.");
+		application.on_device_event(event_loop, device_id, event).expect("Error in device event handler");
 	}
 	
 	fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {

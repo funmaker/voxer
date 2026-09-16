@@ -100,3 +100,11 @@ pub fn from_euler(pitch: f32, yaw: f32, roll: f32) -> Rot3 {
 	
 	y * x * z
 }
+
+pub const fn to_radians(angle: f32) -> f32 {
+	angle * PI / 180.0
+}
+
+pub const fn from_radians(angle: f32) -> f32 {
+	angle / PI * 180.0
+}

@@ -1,26 +1,16 @@
 use std::sync::Arc;
 use anyhow::Result;
-use bytemuck::{Pod, Zeroable};
 use wgpu::{Adapter, Buffer, BufferUsages, CompositeAlphaMode, Device, ExperimentalFeatures, Instance, MemoryHints, Queue, Surface, SurfaceCapabilities, SurfaceConfiguration, TextureFormat, TextureView, Trace};
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 use crate::platform;
+use crate::shaders::commons::Commons;
 use crate::utils::entropy::ENTROPY;
-use crate::utils::math::{Mat4, Vec3};
+use crate::utils::math;
+use crate::utils::math::{Isometry3, Vec3};
 
 pub const TIMING_QUERY_COUNT: u32 = 32;
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable, Debug)]
-pub struct Commons {
-	pub view: Mat4,
-	pub proj: Mat4,
-	pub frame: u32,
-	pub _pad1: u32,
-	pub _pad2: u32,
-	pub _pad3: u32,
-}
 
 #[derive(Debug)]
 pub struct Render {
@@ -36,6 +26,9 @@ pub struct Render {
 	pub commons_buf: Buffer,
 	pub commons: Commons,
 	pub surface_config: SurfaceConfiguration,
+	pub pov: Isometry3,
+	pub pov_rot: (f32, f32, f32),
+	pub fov: f32,
 }
 
 impl Render {
@@ -100,10 +93,7 @@ impl Render {
 		let entropy_tex = entropy_tex.create_view(&wgpu::TextureViewDescriptor { label: Some("Entropy Texture View"), ..Default::default() });
 		
 		let commons = Commons {
-			proj: Mat4::identity(),
-			view: Mat4::new_nonuniform_scaling(&Vec3::new(1.0, 1.0, 1.0)),
 			frame: 0,
-			..Commons::zeroed()
 		};
 		
 		let commons_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -111,6 +101,9 @@ impl Render {
 			contents: bytemuck::bytes_of(&commons),
 			usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
 		});
+		
+		let pov_rot = (0.0, 0.0, 0.0);
+		let pov = Isometry3::from_parts(Vec3::new(0.0, 64.0, 0.0).into(), math::from_euler(pov_rot.0, pov_rot.1, pov_rot.2));
 		
 		Ok(Render {
 			window,
@@ -125,6 +118,9 @@ impl Render {
 			commons_buf,
 			commons,
 			surface_config: config,
+			pov,
+			pov_rot,
+			fov: math::to_radians(90.0),
 		})
 	}
 	
@@ -140,5 +136,9 @@ impl Render {
 	
 	pub fn request_redraw(&self) {
 		self.window.request_redraw();
+	}
+	
+	pub fn aspect_ratio(&self) -> f32 {
+		self.surface_config.width as f32 / self.surface_config.height as f32
 	}
 }

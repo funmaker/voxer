@@ -1,0 +1,3 @@
+[submodule "deps/wgsl_kiss"]
+	path = deps/wgsl_kiss
+	url = ../wgsl_kiss.git

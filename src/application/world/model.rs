@@ -1,7 +1,7 @@
 use dot_vox::SceneNode;
 use nalgebra::{point, Point, vector};
 
-use crate::shaders::world::{Material, Model};
+use crate::shaders::model::{Material, Model};
 use crate::utils::math::{IVec4, Vec3, Vec4};
 
 impl Model {
